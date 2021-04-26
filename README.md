@@ -16,3 +16,8 @@ Work with 24, 25, 30 framerates;
 And it is free and crossplatform!
 
 https://artnetaudioplayer.github.io/
+
+# About
+Python v. 3.7
+Using pygame and tkinter module
+Also works fine with Python 3.9
