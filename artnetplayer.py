@@ -10,6 +10,7 @@ from tkinter import filedialog
 
 import psutil
 import pygame
+from tinytag import TinyTag
 
 import artnet_tc
 import paths
@@ -30,7 +31,8 @@ class ArtNetPlayer(tk.Frame):
     ext_time = 0
     slider_moved = False
 
-    def __init__(self, master, *args, **kwargs):
+
+    def __init__(self, master, sizex = 450, sizey = 470, *args, **kwargs):
         # Init Pygame Mixer
         super().__init__(master, **kwargs)
         player = pygame.mixer
@@ -39,8 +41,9 @@ class ArtNetPlayer(tk.Frame):
         self.player = player
 
         self.master = master
-        self.master.title('Art-Net Audio Player  v1.0.2')
-        self.master.geometry("450x460")
+        self.master.title('Art-Net Audio Player  v1.1.3')
+        self.master.geometry(f'{sizex}x{sizey}')
+
         try:
             wd = sys._MEIPASS
         except AttributeError:
@@ -100,7 +103,7 @@ class ArtNetPlayer(tk.Frame):
         self.master_frame = Frame(self.master)
         self.master_frame.pack(pady=15)
         # Create Playlist Box
-        self.song_box = Listbox(self.master_frame, bg="black", fg="green", width=60, height=7, selectbackground="green",
+        self.song_box = Listbox(self.master_frame, bg="black", fg="green", width=60, height=8, selectbackground="green",
                                 selectforeground="black", relief=FLAT, border=0)
         # Create Music Position Slider
         self.my_slider = ttk.Scale(self.master_frame, from_=0, to=100, orient=HORIZONTAL, value=0,
@@ -195,15 +198,15 @@ class ArtNetPlayer(tk.Frame):
     def callback(self, event):
         webbrowser.open_new(event.widget.cget("text"))
 
-    def about_window(self):
+    def about_window(self, offsetx=452):
         about_wind = Toplevel(self.master_frame)
         about_wind.title("About program")
         x = self.master.winfo_x()
         y = self.master.winfo_y()
         about_wind.geometry("330x160")
-        about_wind.geometry("+%d+%d" % (x + 452, y))
+        about_wind.geometry("+%d+%d" % (x + offsetx, y))
         about_wind.resizable(False, False)
-        label_conf = tk.Label(about_wind, text="Art-Net Audio Player v1.0.2", font=(None, 14))
+        label_conf = tk.Label(about_wind, text="Art-Net Audio Player v1.1.3", font=(None, 14))
         label_conf.grid(row=1, column=0, padx=10, pady=5)
         label_conf = tk.Label(about_wind, text='For any questions write to: pervushkinp@gmail.com')
         label_conf.grid(row=2, column=0, padx=10, pady=5)
@@ -213,14 +216,14 @@ class ArtNetPlayer(tk.Frame):
         lbl.grid(row=4, column=0, padx=10, pady=5)
         lbl.bind("<Button-1>", self.callback)
 
-    def open_config_window(self):
+    def open_config_window(self, sizex=360, sizey=220, offsetx=452):
         self.conf_wind = Toplevel(self.master_frame)      ###
         self.conf_wind.title("Configure params")
         # sets the geometry of toplevel
         x = self.master.winfo_x()
         y = self.master.winfo_y()
-        self.conf_wind.geometry("360x220")
-        self.conf_wind.geometry("+%d+%d" % (x + 452, y))
+        self.conf_wind.geometry(f'{sizex}x{sizey}')
+        self.conf_wind.geometry("+%d+%d" % (x + offsetx, y))
         self.conf_wind.resizable(False, False)
 
         with open('data.json') as json_file:
@@ -348,11 +351,21 @@ class ArtNetPlayer(tk.Frame):
     def callback_listbox(self, event):
         #self.stop()
         param_list = self.active_song_param()
+        print(param_list)
+
+        song_anet_time = param_list[2]
+        # song_index = self.song_box.curselection()
+        global framerate
+
         try:
             song_ext = param_list[3]
             song_anet_time = param_list[2]
-            #song_index = self.song_box.curselection()
-            self.labeltextATC.set(artnet_tc.millis_to_tc(song_anet_time), framerate)
+            song_duration = param_list[1]
+            self.labeltextATC.set(artnet_tc.millis_to_tc(song_anet_time, framerate))
+            print(artnet_tc.millis_to_tc(song_anet_time, framerate))
+            audio_duration = artnet_tc.millis_to_tc(song_duration*1000, framerate)
+            self.status_bar.config(text=audio_duration + '  ')
+
             if song_ext == "WAV":
                 self.my_slider.state(['disabled'])
                 self.paused = False
@@ -361,7 +374,7 @@ class ArtNetPlayer(tk.Frame):
                 self.paused = False
         except TypeError:
             print("TypeError callback_listbox")
-        self.status_bar.config(text=f'STOPPED  ')
+
 
     def play_update(self):
         global framerate
@@ -448,7 +461,15 @@ class ArtNetPlayer(tk.Frame):
                     self.status_bar.config(text=f'WRONG FILE EXTENSION!  ')
                     return
             else:
-                self.player.music.load(song_path)
+                try:
+                    self.player.music.load(song_path)
+                except pygame.error:
+                    print("Socket error")
+                    self.status_bar.config(text=f'Unknown data format  ')
+                    tk.messagebox.showerror(title='Format Error', message='Unknown data format')
+                    self.stop()
+                    return
+
                 self.player.music.play(loops=0, start=int(self.my_slider.get()))
                 self.status_bar.config(text=f'PLAYING...  ')
 
@@ -516,7 +537,10 @@ class ArtNetPlayer(tk.Frame):
                 tclist = tcstr_append.split(':')
                 fr_ms = int(round(int(tclist[3]) * 1000 / framerate))
                 msecs = int(tclist[0]) * 60 * 60 * 1000 + int(tclist[1]) * 60 * 1000 + int(tclist[2]) * 1000 + fr_ms + 1
+                # Save ArtNet offset to list
                 self.songsartnet_time[song_index] = msecs
+                # Output ArtNet offset
+                self.labeltextATC.set(artnet_tc.millis_to_tc(msecs, framerate))
         except IndexError:
             print("IndexError")
             self.status_bar.config(text=f'SELECT AUDIO TO SAVE TC!  ')
@@ -534,11 +558,12 @@ class ArtNetPlayer(tk.Frame):
             song_name = paths.path_leaf(song)
             self.song_box.insert(END, song_name)
             self.listofsongs.append(song)
-            song1 = pygame.mixer.Sound(song)
-            self.durationofsongs.append(song1.get_length())
+            tag = TinyTag.get(song)
+            #song1 = pygame.mixer.Sound(song)
+            self.durationofsongs.append(tag.duration)
             self.songsartnet_time.append(0)
-            print(song1.get_length())
-            song_length_str = song_name + ' LENGTH: ' + str(int(song1.get_length())) + ' secs  '
+            print(tag.duration)
+            song_length_str = song_name + ' LENGTH: ' + str(int(tag.duration)) + ' secs  '
             self.status_bar.config(text=song_length_str)
         # set slider to zero pos
         self.my_slider.config(value=0)
