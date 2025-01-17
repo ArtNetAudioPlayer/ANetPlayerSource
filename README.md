@@ -2,7 +2,7 @@
 > [!NOTE]
 > This version will no longer be supported.
 > 
-> Art Net Audio Player 2 coming soon!
+> Art Net Audio Player 2 is come!
 > 
 [pervu.github.io/projects.html](https://pervu.github.io/projects.html)
 ---
